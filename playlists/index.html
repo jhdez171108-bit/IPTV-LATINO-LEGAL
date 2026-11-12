@@ -6,64 +6,130 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IPTV LATINO LEGAL</title>
 <style>
+* { box-sizing: border-box; }
+
 body {
   font-family: Arial, sans-serif;
   background: #101827;
   color: white;
   text-align: center;
-  padding: 35px 15px;
+  padding: 30px 15px;
+  margin: 0;
 }
+
 .container {
-  max-width: 650px;
+  max-width: 750px;
   margin: auto;
 }
-h1 { color: #38bdf8; }
+
+h1 {
+  color: #38bdf8;
+  font-size: 30px;
+}
+
+.subtitle {
+  color: #cbd5e1;
+  margin-bottom: 25px;
+}
+
 .card {
   background: #1e293b;
-  padding: 18px;
-  margin: 14px 0;
-  border-radius: 12px;
+  padding: 22px;
+  margin: 15px 0;
+  border-radius: 14px;
+  transition: .2s;
 }
+
+.card:hover {
+  background: #29384e;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
 a {
   color: #38bdf8;
   text-decoration: none;
   font-weight: bold;
 }
-footer {
+
+a:hover {
+  color: #7dd3fc;
+}
+
+.description {
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.footer {
   color: #94a3b8;
-  margin-top: 40px;
   font-size: 13px;
+  margin-top: 35px;
+  line-height: 1.7;
 }
 </style>
 </head>
+
 <body>
 <div class="container">
+
 <h1>IPTV LATINO LEGAL</h1>
-<p>Catálogo de contenido audiovisual autorizado</p>
+
+<p class="subtitle">
+Catálogo de contenido audiovisual gratuito y autorizado
+</p>
 
 <div class="card">
-<h3>Películas</h3>
-<a href="movies.m3u">Abrir lista M3U</a>
+<h2>🎬 Películas</h2>
+<p class="description">
+Películas con enlaces directos autorizados.
+</p>
+<a href="./movies.m3u">Abrir lista M3U</a>
 </div>
 
 <div class="card">
-<h3>Series</h3>
-<a href="series.m3u">Abrir lista M3U</a>
+<h2>📺 Series</h2>
+<p class="description">
+Series organizadas por temporadas y episodios.
+</p>
+<a href="./series.m3u">Abrir lista M3U</a>
 </div>
 
 <div class="card">
-<h3>Anime</h3>
-<a href="anime.m3u">Abrir lista M3U</a>
+<h2>🎌 Anime</h2>
+<p class="description">
+Anime con audio español latino verificado.
+</p>
+<a href="./anime.m3u">Abrir lista M3U</a>
 </div>
 
 <div class="card">
-<h3>Dibujos animados</h3>
-<a href="cartoons.m3u">Abrir lista M3U</a>
+<h2>🐻 Dibujos animados</h2>
+<p class="description">
+Animación infantil con derechos verificados.
+</p>
+<a href="./cartoons.m3u">Abrir lista M3U</a>
 </div>
 
-<footer>
-IPTV-LATINO-LEGAL | Catálogo gratuito y autorizado
-</footer>
+<div class="card">
+<h2>🌎 Plataformas legales gratuitas</h2>
+<p class="description">
+Explora servicios oficiales de películas,
+series y cine latinoamericano.
+</p>
+<a href="./platforms.html">
+EXPLORAR PLATAFORMAS
+</a>
+</div>
+
+<div class="footer">
+IPTV-LATINO-LEGAL<br>
+Catálogo independiente de contenido autorizado.<br>
+El idioma y la disponibilidad dependen de cada título.
+</div>
+
 </div>
 </body>
 </html>
