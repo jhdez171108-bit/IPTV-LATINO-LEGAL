@@ -1,123 +1,309 @@
+
 #!/usr/bin/env python3
-"""Build authorized M3U playlists from database/catalog.json."""
+"""IPTV-LATINO-LEGAL: generador de listas M3U autorizadas."""
+
 from __future__ import annotations
-import json, re, sys
+
+import json
+import re
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
+
 import requests
 
 ROOT = Path(__file__).resolve().parent
 CATALOG = ROOT / "database" / "catalog.json"
 OUT = ROOT / "playlists"
 REPORTS = ROOT / "reports"
-ALLOWED_TYPES = {"movie", "episode"}
+
 CATEGORIES = {"movies", "series", "anime", "cartoons"}
+ALLOWED_TYPES = {"movie", "episode"}
 ALLOWED_AUDIO = {"es-419"}
 TIMEOUT = 15
-HEADERS = {"User-Agent": "IPTV-LATINO-LEGAL/0.1 (+authorized-media-catalog)"}
 
-def safe_text(value: str) -> str:
+HEADERS = {
+    "User-Agent": "IPTV-LATINO-LEGAL/1.0"
+}
+
+NO_NETWORK = "--no-network" in sys.argv
+
+
+def clean(value):
+    """Limpiar texto para M3U."""
     return re.sub(r"[\r\n,]", " ", str(value or "")).strip()
 
-def check_url(url: str) -> tuple[bool, str]:
-    try:
-        p = urlparse(url)
-        if p.scheme not in ("https", "http") or not p.netloc:
-            return False, "URL inválida: se requiere HTTP(S)"
-        # HEAD first; some media hosts reject HEAD, so retry a small ranged GET.
-        r = requests.head(url, allow_redirects=True, timeout=TIMEOUT, headers=HEADERS)
-        if r.status_code in (405, 403, 501):
-            r = requests.get(url, allow_redirects=True, stream=True, timeout=TIMEOUT,
-                             headers={**HEADERS, "Range": "bytes=0-0"})
-        if r.status_code >= 400:
-            return False, f"HTTP {r.status_code}"
-        ctype = r.headers.get("Content-Type", "").lower()
-        if any(x in ctype for x in ("text/html", "application/json")):
-            return False, f"El servidor devolvió {ctype}, no un medio directo"
-        return True, f"HTTP {r.status_code}; {ctype or 'tipo no declarado'}"
-    except requests.RequestException as e:
-        return False, f"Error de conexión: {e.__class__.__name__}"
 
-def validate(item: dict, check_network: bool) -> tuple[bool, list[str], str]:
+def valid_https(value):
+    """Comprobar estructura de una URL HTTPS."""
+    try:
+        parsed = urlparse(str(value or ""))
+        return (
+            parsed.scheme == "https"
+            and bool(parsed.hostname)
+            and not any(c.isspace() for c in str(value))
+        )
+    except ValueError:
+        return False
+
+
+def check_url(url):
+    """Comprobar accesibilidad HTTP del enlace."""
+    if not valid_https(url):
+        return False, "Se requiere una URL HTTPS válida"
+
+    try:
+        response = requests.head(
+            url,
+            allow_redirects=True,
+            timeout=TIMEOUT,
+            headers=HEADERS
+        )
+
+        if response.status_code in (403, 405, 501):
+            response.close()
+            response = requests.get(
+                url,
+                headers={**HEADERS, "Range": "bytes=0-1023"},
+                allow_redirects=True,
+                stream=True,
+                timeout=TIMEOUT
+            )
+
+        status = response.status_code
+        response.close()
+
+        if status in (200, 206):
+            return True, "HTTP accesible"
+
+        return False, f"HTTP {status}"
+
+    except requests.RequestException as exc:
+        return False, f"Error de conexión: {exc.__class__.__name__}"
+
+
+def validate(item):
+    """Validar derechos, idioma, estructura y enlace."""
+
     errors = []
-    if not safe_text(item.get("id")): errors.append("Falta id")
-    if not safe_text(item.get("title")): errors.append("Falta título")
-    typ = item.get("type")
-    cat = item.get("category")
-    if typ not in ALLOWED_TYPES: errors.append("type debe ser movie o episode")
-    if cat not in CATEGORIES: errors.append("Categoría no válida")
+
+    if not isinstance(item, dict):
+        return False, ["Registro inválido"], "No comprobado"
+
+    title = clean(item.get("title"))
+    category = item.get("category")
+    media_type = item.get("type")
+
+    if not title:
+        errors.append("Falta el título")
+
+    if category not in CATEGORIES:
+        errors.append("Categoría no permitida")
+
+    if media_type not in ALLOWED_TYPES:
+        errors.append("Tipo debe ser movie o episode")
+
     if item.get("audio_language") not in ALLOWED_AUDIO:
-        errors.append("Audio no identificado como español latino (es-419)")
+        errors.append("Idioma distinto de español latino (es-419)")
+
     if item.get("audio_verified") is not True:
         errors.append("Audio latino no verificado")
-    if not safe_text(item.get("audio_verification_method")):
-        errors.append("Indica método/evidencia de verificación de audio")
-    if not safe_text(item.get("license")) or not safe_text(item.get("license_url")):
-        errors.append("Falta licencia o URL de licencia")
-    if item.get("rights_verified") is not True:
-        errors.append("Derechos de redistribución no aprobados")
-    if not safe_text(item.get("rights_notes")):
-        errors.append("Falta evidencia/notas de derechos")
-    url = item.get("url", "")
-    if not url: errors.append("Falta URL de reproducción")
-    if typ == "episode":
-        if not isinstance(item.get("season"), int) or item["season"] < 1:
-            errors.append("Episodio: temporada debe ser entero >= 1")
-        if not isinstance(item.get("episode"), int) or item["episode"] < 1:
-            errors.append("Episodio: número debe ser entero >= 1")
-    network_note = "No comprobado (modo sin red)"
-    if check_network and url:
-        ok, network_note = check_url(url)
-        if not ok: errors.append(network_note)
-    return not errors, errors, network_note
 
-def extinf(item: dict) -> str:
-    title = safe_text(item.get("title"))
-    group = safe_text(item.get("group_title") or item["category"].title())
-    poster = safe_text(item.get("poster"))
-    attrs = [f'tvg-type="{"movie" if item["type"] == "movie" else "series"}"',
-             f'group-title="{group}"']
-    if poster: attrs.append(f'tvg-logo="{poster}"')
+    if not clean(item.get("audio_verification_method")):
+        errors.append("Falta evidencia del método de verificación de audio")
+
+    if not clean(item.get("license")):
+        errors.append("Falta información de licencia")
+
+    if not valid_https(item.get("license_url")):
+        errors.append("URL de licencia inválida")
+
+    if item.get("rights_verified") is not True:
+        errors.append("Derechos de distribución no aprobados")
+
+    if not clean(item.get("rights_notes")):
+        errors.append("Falta descripción de los derechos")
+
+    if not valid_https(item.get("rights_evidence_url")):
+        errors.append("Falta evidencia HTTPS de autorización")
+
+    url = item.get("url", "")
+
+    if not valid_https(url):
+        errors.append("URL de reproducción HTTPS inválida")
+
+    if media_type == "episode":
+        for field in ("season", "episode"):
+            value = item.get(field)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                errors.append(f"{field}: se requiere un entero mayor que cero")
+
+        if not clean(item.get("series_name")):
+            errors.append("Falta el nombre de la serie")
+
+    if errors:
+        return False, errors, "No comprobado"
+
+    if NO_NETWORK:
+        return True, [], "No comprobado (modo sin red)"
+
+    accessible, note = check_url(url)
+
+    if not accessible:
+        return False, [note], note
+
+    return True, [], note
+
+
+def extinf(item):
+    """Construir entrada compatible con IPTV Smarters."""
+
+    title = clean(item.get("title"))
+    category = item["category"]
+    poster = clean(item.get("poster"))
+    group = clean(item.get("group_title")) or category.title()
+
+    attributes = [
+        f'tvg-type="{"movie" if item["type"] == "movie" else "series"}"',
+        f'group-title="{group}"'
+    ]
+
+    if poster and valid_https(poster):
+        attributes.append(f'tvg-logo="{poster}"')
+
     if item["type"] == "episode":
-        attrs += [f'series-name="{safe_text(item.get("series_name") or title)}"',
-                  f'season="{item["season"]}"', f'episode="{item["episode"]}"']
-        label = f'{safe_text(item.get("series_name") or title)} S{item["season"]:02d}E{item["episode"]:02d} - {title}'
+        series = clean(item.get("series_name")) or title
+        season = item["season"]
+        episode = item["episode"]
+
+        attributes.extend([
+            f'series-name="{series}"',
+            f'season="{season}"',
+            f'episode="{episode}"'
+        ])
+
+        display = (
+            f"{series} S{season:02d}E{episode:02d} - {title}"
+        )
     else:
-        label = title
-    return f'#EXTINF:-1 {" ".join(attrs)},{label}'
+        display = title
+
+    return f'#EXTINF:-1 {" ".join(attributes)},{display}'
+
+
+def write_playlist(path, items):
+    """Crear archivo M3U."""
+    lines = ["#EXTM3U"]
+
+    for item in items:
+        lines.append(extinf(item))
+        lines.append(item["url"])
+
+    path.write_text(
+        "\n".join(lines) + "\n",
+        encoding="utf-8"
+    )
+
 
 def main():
-    check_network = "--no-network" not in sys.argv
+
+    if not CATALOG.exists():
+        raise FileNotFoundError(f"No existe: {CATALOG}")
+
     data = json.loads(CATALOG.read_text(encoding="utf-8"))
-    items = data.get("items", [])
-    OUT.mkdir(exist_ok=True); REPORTS.mkdir(exist_ok=True)
-    report = {"checked": len(items), "accepted": [], "rejected": []}
+
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        raise ValueError("catalog.json debe contener una lista items")
+
+    items = data["items"]
+
+    OUT.mkdir(exist_ok=True)
+    REPORTS.mkdir(exist_ok=True)
+
+    report = {
+        "checked": len(items),
+        "accepted": [],
+        "rejected": [],
+        "network_check": not NO_NETWORK
+    }
+
     accepted = []
+    seen_ids = set()
+
     for item in items:
-        ok, errors, net = validate(item, check_network)
-        record = {"id": item.get("id"), "title": item.get("title"),
-                  "network": net, "errors": errors}
-        if ok:
-            accepted.append(item); report["accepted"].append(record)
+
+        if not isinstance(item, dict):
+            report["rejected"].append({
+                "id": None,
+                "errors": ["Registro no válido"]
+            })
+            continue
+
+        item_id = clean(item.get("id"))
+        errors_extra = []
+
+        if not item_id:
+            errors_extra.append("Falta ID")
+
+        elif item_id in seen_ids:
+            errors_extra.append("ID duplicado")
+
+        else:
+            seen_ids.add(item_id)
+
+        ok, errors, network = validate(item)
+        errors.extend(errors_extra)
+
+        record = {
+            "id": item_id,
+            "title": clean(item.get("title")),
+            "category": item.get("category"),
+            "audio": item.get("audio_language"),
+            "network": network,
+            "errors": errors
+        }
+
+        if ok and not errors:
+            accepted.append(item)
+            report["accepted"].append(record)
         else:
             report["rejected"].append(record)
+
     for category in sorted(CATEGORIES):
-        selected = [x for x in accepted if x["category"] == category]
-        lines = ["#EXTM3U"]
-        for item in selected:
-            lines += [extinf(item), item["url"]]
-        (OUT / f"{category}.m3u").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    (OUT / "all.m3u").write_text(
-        "\n".join(["#EXTM3U"] + [line for x in accepted for line in (extinf(x), x["url"])]) + "\n",
-        encoding="utf-8")
+
+        selected = [
+            item for item in accepted
+            if item["category"] == category
+        ]
+
+        write_playlist(
+            OUT / f"{category}.m3u",
+            selected
+        )
+
+    write_playlist(OUT / "all.m3u", accepted)
+
     report["accepted_count"] = len(accepted)
     report["rejected_count"] = len(report["rejected"])
+
     (REPORTS / "validation_report.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Catálogo: {len(items)} | Aprobados: {len(accepted)} | Rechazados: {len(report['rejected'])}")
-    print(f"Listas generadas en: {OUT}")
+        json.dumps(report, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+    )
+
+    print("=" * 48)
+    print("       IPTV-LATINO-LEGAL")
+    print("=" * 48)
+    print(f"Registros revisados: {len(items)}")
+    print(f"Aprobados: {len(accepted)}")
+    print(f"Rechazados: {len(report['rejected'])}")
+    print(f"Modo de red: {'Desactivado' if NO_NETWORK else 'Activado'}")
+    print(f"Listas generadas: {OUT}")
+    print(f"Informe: {REPORTS / 'validation_report.json'}")
+
     if report["rejected"]:
-        print("Revisa reports/validation_report.json. Los elementos rechazados no se publican.")
+        print("\nHay registros rechazados. Revisa el informe.")
+
 
 if __name__ == "__main__":
     main()
