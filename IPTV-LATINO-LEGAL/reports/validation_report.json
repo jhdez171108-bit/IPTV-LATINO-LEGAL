@@ -1,0 +1,18 @@
+{
+  "checked": 1,
+  "accepted": [],
+  "rejected": [
+    {
+      "id": "sample-public-domain-film",
+      "title": "Ejemplo de película autorizada",
+      "network": "No comprobado (modo sin red)",
+      "errors": [
+        "Audio latino no verificado",
+        "Indica método/evidencia de verificación de audio",
+        "Derechos de redistribución no aprobados"
+      ]
+    }
+  ],
+  "accepted_count": 0,
+  "rejected_count": 1
+}

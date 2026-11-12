@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "id": "sample-public-domain-film",
+      "title": "Ejemplo de película autorizada",
+      "type": "movie",
+      "category": "movies",
+      "url": "https://archive.org/download/BigBuckBunny_328/big_buck_bunny_720p_surround.mp4",
+      "audio_language": "es-419",
+      "audio_verified": false,
+      "audio_verification_method": "",
+      "license": "CC-BY-3.0",
+      "license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "rights_verified": false,
+      "rights_notes": "Ejemplo de plantilla: verificar que esta copia concreta incluye pista de audio latino y que su redistribución está permitida antes de activar.",
+      "season": null,
+      "episode": null,
+      "poster": "",
+      "tmdb_id": ""
+    }
+  ]
+}

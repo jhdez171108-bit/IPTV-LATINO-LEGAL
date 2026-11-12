@@ -1,0 +1,18 @@
+{
+  "project": "IPTV-LATINO-LEGAL",
+  "default_language": "es-419",
+  "allowed_audio_languages": [
+    "es-419"
+  ],
+  "categories": [
+    "movies",
+    "series",
+    "anime",
+    "cartoons"
+  ],
+  "notes": [
+    "Only add URLs you are authorized to distribute.",
+    "Audio language must be verified from the actual media, not inferred from title or subtitles.",
+    "License evidence must be reviewed by a human before approval."
+  ]
+}
